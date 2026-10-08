@@ -24,7 +24,7 @@ export const ChevronLeft = () => (
 
 export function Seg<K extends string>({ options, value, onChange, height }: { options: [K, string][]; value: K; onChange: (k: K) => void; height?: number }) {
   return (
-    <div className="seg">
+    <div className="seg" style={{ gridTemplateColumns: `repeat(${options.length},1fr)` }}>
       {options.map(([k, label]) => (
         <button key={k} aria-pressed={value === k} onClick={() => onChange(k)} style={height ? { height } : undefined}>
           {label}

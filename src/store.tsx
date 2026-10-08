@@ -1,17 +1,18 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { FLASH, type Habit, type Log, type LogType, type Preset, type QuickType, type Reminders, type ThemePref } from "./lib/model";
+import { FLASH, type BuildQuick, type Goal, type Habit, type HabitKind, type Log, type LogType, type Measure, type Preset, type QuickType, type Reminders, type ThemePref } from "./lib/model";
+import { measureOf, withUnit } from "./lib/calc";
 import { load, save } from "./lib/storage";
 import { seedHabits } from "./lib/seed";
 import { addDays, plural, sod, uid, vibrate } from "./lib/util";
 
 export type Tab = "today" | "progress" | "settings";
 export type PTab = "calendar" | "milestones" | "patterns";
-export type SheetKind = "switch" | "moments" | "detail" | "slip" | "note" | "edit";
+export type SheetKind = "switch" | "moments" | "detail" | "slip" | "note" | "edit" | "entry";
 export type StartMode = "today" | "yesterday" | "earlier";
 
 export interface Flash {
   text: string;
-  action: "Ride it out" | "Add detail" | null;
+  action: "Ride it out" | "Add detail" | "Start session" | "Add reason" | null;
   logId?: string;
 }
 export interface Surf {
@@ -19,16 +20,25 @@ export interface Surf {
   started: boolean;
   done: boolean;
 }
+export type ObStep = "kind" | "pick" | "why" | "start" | "goal" | "measure";
+export const OB_STEPS: Record<HabitKind, ObStep[]> = {
+  quit: ["kind", "pick", "why", "start"],
+  build: ["kind", "pick", "why", "goal"],
+  track: ["kind", "pick", "measure"],
+};
 export interface Onboard {
-  step: 1 | 2 | 3;
+  step: number; // index into OB_STEPS[kind]
+  kind: HabitKind;
   preset: Preset | null;
+  goal: Goal;
+  measure: Measure;
   custom: string;
   why: string;
   startMode: StartMode;
   daysAgo: number;
 }
 
-const newOb = (): Onboard => ({ step: 1, preset: null, custom: "", why: "", startMode: "today", daysAgo: 3 });
+const newOb = (): Onboard => ({ step: 0, kind: "quit", preset: null, goal: { per: "day", times: 1 }, measure: { mode: "count", unit: "times", unitOne: "time", agg: "sum" }, custom: "", why: "", startMode: "today", daysAgo: 3 });
 
 // `?demo` previews sample data without touching what's stored on this device.
 const DEMO = new URLSearchParams(location.search).has("demo");
@@ -97,11 +107,29 @@ function useSteadyState() {
     return l;
   };
 
-  const quick = (type: QuickType) => {
+  const quick = (type: QuickType | BuildQuick) => {
     const l = log(type);
     if (!l) return;
     const msgs = FLASH[type];
-    showFlash(msgs[Math.floor(Math.random() * msgs.length)], type === "urge" ? "Ride it out" : "Add detail", l.id);
+    const action = type === "urge" ? "Ride it out" : type === "resist" ? "Start session" : type === "skip" ? "Add reason" : "Add detail";
+    showFlash(msgs[Math.floor(Math.random() * msgs.length)], action, l.id);
+  };
+
+  /** Track: log an entry. Counts default to 1. */
+  const addEntry = (value: number) => {
+    if (!habit) return;
+    const l = log("entry", { value });
+    if (l) showFlash(`Logged ${withUnit(measureOf(habit), value)}.`, "Add detail", l.id);
+  };
+
+  /** Track: remove today's most recent entry. */
+  const undoLast = () => {
+    if (!habit) return;
+    const today = new Date().setHours(0, 0, 0, 0);
+    const last = habit.logs.filter((l) => l.type === "entry" && l.t >= today).sort((a, b) => b.t - a.t)[0];
+    if (!last) return;
+    removeLog(last.id);
+    showFlash(`Removed ${withUnit(measureOf(habit), last.value ?? 1)}.`);
   };
 
   const patchLog = (id: string, patch: Partial<Log>) => {
@@ -124,7 +152,8 @@ function useSteadyState() {
   };
   const finishSurf = () => {
     clearInterval(surfInterval.current);
-    log("resisted", { note: "Rode it out with breathing" });
+    if (habit?.kind === "build") log("done", { value: Math.max(1, Math.round((surf?.elapsed ?? 0) / 60)), note: "" });
+    else log("resisted", { note: "Rode it out with breathing" });
     setSurf((s) => (s ? { ...s, done: true } : s));
   };
   const closeSurf = () => {
@@ -136,7 +165,7 @@ function useSteadyState() {
     if (!flash) return;
     clearTimeout(flashTimer.current);
     setFlash(null);
-    if (flash.action === "Ride it out") openSurf();
+    if (flash.action === "Ride it out" || flash.action === "Start session") openSurf();
     else if (flash.logId) {
       setDetailId(flash.logId);
       setSheet("detail");
@@ -145,31 +174,37 @@ function useSteadyState() {
 
   const obNext = () => {
     if (!ob) return;
-    if (ob.step === 1) {
-      if (!ob.preset || (ob.preset.custom && !ob.custom.trim())) return;
-      setOb({ ...ob, step: 2 });
-      return;
-    }
-    if (ob.step === 2) {
-      setOb({ ...ob, step: 3 });
+    const steps = OB_STEPS[ob.kind];
+    const step = steps[ob.step];
+    if (step === "pick" && (!ob.preset || (ob.preset.custom && !ob.custom.trim()))) return;
+    if (step === "measure" && !ob.measure.unit.trim()) return;
+    if (ob.step < steps.length - 1) {
+      setOb({ ...ob, step: ob.step + 1 });
       return;
     }
     const preset = ob.preset!;
-    const days = ob.startMode === "today" ? 0 : ob.startMode === "yesterday" ? 1 : ob.daysAgo;
+    const days = ob.kind === "quit" ? (ob.startMode === "today" ? 0 : ob.startMode === "yesterday" ? 1 : ob.daysAgo) : 0;
     const h: Habit = {
       id: uid(),
+      kind: ob.kind,
       name: preset.custom ? ob.custom.trim() : preset.name,
       label: preset.label,
-      why: ob.why.trim(),
+      why: ob.kind === "track" ? "" : ob.why.trim(),
       start: addDays(sod(Date.now()), -days),
       logs: [],
+      ...(ob.kind === "build" ? { goal: ob.goal } : {}),
+      ...(ob.kind === "track" ? { measure: { ...ob.measure, unit: ob.measure.unit.trim() } } : {}),
     };
     setHabits((hs) => [...hs, h]);
     setActiveId(h.id);
     setOb(null);
     setTab("today");
     setSheet(null);
-    showFlash(days === 0 ? "Day one. We're right here with you." : `${plural(days, "day")} already. Let's keep going.`);
+    showFlash(
+      ob.kind === "build" ? "You're set. The first one is the hardest — and the best."
+      : ob.kind === "track" ? "Ready. Tap whenever there's something to log."
+      : days === 0 ? "Day one. We're right here with you." : `${plural(days, "day")} already. Let's keep going.`,
+    );
   };
 
   const deleteHabit = (id: string) => {
@@ -203,7 +238,7 @@ function useSteadyState() {
     habits, habit, activeId, theme, reminders,
     tab, ptab, sheet, detailId, editId, flash, surf, ob, calOffset,
     setActiveId, setTheme, setReminders, setTab, setPtab, setSheet, setDetailId, setEditId, setOb, setCalOffset,
-    updateHabitById, showFlash, log, quick, patchLog, removeLog,
+    updateHabitById, showFlash, log, quick, addEntry, undoLast, patchLog, removeLog,
     openSurf, finishSurf, closeSurf, flashAction,
     startOnboarding: () => {
       setOb(newOb());

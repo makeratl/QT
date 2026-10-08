@@ -198,7 +198,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   padding: var(--safe-top) 28px calc(var(--safe-bot-raw) + 20px);
 }
 .surf { z-index: 40; background: var(--teal); color: var(--on-teal); align-items: center; }
-.ob { z-index: 45; background: var(--bg); color: var(--ink); padding-left: 24px; padding-right: 24px; gap: 26px; }
+.ob { z-index: 45; background: var(--bg); color: var(--ink); padding-left: 24px; padding-right: 24px; gap: 26px; overflow-y: auto; }
+.ob > * { flex-shrink: 0; }
 .big-btn { align-self: stretch; height: 56px; border-radius: 999px; font: 800 16px "Nunito", sans-serif; flex: none; }
 
 @media (prefers-reduced-motion: reduce) {

@@ -16,7 +16,7 @@ export const diffDays = (a: number, b: number): number => Math.round((sod(b) - s
 export const fmtTime = (t: number) => new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).toLowerCase();
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
-export const plural = (n: number, w: string) => n + " " + w + (n === 1 ? "" : "s");
+export const plural = (n: number, w: string, many = w + "s") => n + " " + (n === 1 ? w : many);
 
 export const vibrate = () => {
   try {

@@ -1,14 +1,13 @@
 import { useState } from "react";
-import { calc } from "../lib/calc";
+import { habitSummary } from "../lib/calc";
 import type { ThemePref } from "../lib/model";
-import { plural } from "../lib/util";
 import { useSteady } from "../store";
 import { Seg } from "./bits";
 
 export function HabitSub({ id }: { id: string }) {
   const { habits } = useSteady();
   const h = habits.find((x) => x.id === id)!;
-  return <span className="row-sub">{`${plural(calc(h).streak, "day")} ${h.label}`}</span>;
+  return <span className="row-sub">{habitSummary(h)}</span>;
 }
 
 const Section = ({ label, children, style }: { label: string; children: React.ReactNode; style?: React.CSSProperties }) => (
@@ -43,7 +42,7 @@ export function Settings() {
           ))}
           <button onClick={s.startOnboarding} style={{ display: "flex", alignItems: "center", gap: 14, height: 52, padding: "0 16px", background: "var(--surface)", color: "var(--teal)", textAlign: "left", font: "800 15px 'Nunito',sans-serif" }}>
             <span style={{ width: 20, height: 20, borderRadius: "50%", background: "var(--teal-tint)", display: "flex", alignItems: "center", justifyContent: "center", font: "800 16px/1 'Nunito',sans-serif" }}>+</span>
-            Add something to quit
+            Add something new
           </button>
         </div>
       </Section>
