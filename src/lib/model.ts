@@ -33,6 +33,7 @@ export interface Measure {
   unit: string; // plural, e.g. "glasses"
   unitOne?: string; // singular, e.g. "glass"
   agg: "sum" | "latest"; // how a day's entries combine
+  better?: "more" | "less" | "neither"; // which way counts as a good day; missing → "neither"
 }
 
 export interface Habit {
@@ -185,12 +186,12 @@ export const PRESETS: Record<HabitKind, Preset[]> = {
     { name: "Something else", label: "", custom: true, goal: { per: "day", times: 1 } },
   ],
   track: [
-    { name: "Water", label: "", measure: { mode: "count", unit: "glasses", unitOne: "glass", agg: "sum" } },
-    { name: "Coffee", label: "", measure: { mode: "count", unit: "cups", unitOne: "cup", agg: "sum" } },
-    { name: "Sleep", label: "", measure: { mode: "amount", unit: "hours", unitOne: "hour", agg: "sum" } },
-    { name: "Weight", label: "", measure: { mode: "amount", unit: "kg", agg: "latest" } },
-    { name: "Steps", label: "", measure: { mode: "amount", unit: "steps", unitOne: "step", agg: "sum" } },
-    { name: "Something else", label: "", custom: true, measure: { mode: "count", unit: "times", unitOne: "time", agg: "sum" } },
+    { name: "Water", label: "", measure: { mode: "count", unit: "glasses", unitOne: "glass", agg: "sum", better: "more" } },
+    { name: "Coffee", label: "", measure: { mode: "count", unit: "cups", unitOne: "cup", agg: "sum", better: "less" } },
+    { name: "Sleep", label: "", measure: { mode: "amount", unit: "hours", unitOne: "hour", agg: "sum", better: "more" } },
+    { name: "Weight", label: "", measure: { mode: "amount", unit: "kg", agg: "latest", better: "neither" } },
+    { name: "Steps", label: "", measure: { mode: "amount", unit: "steps", unitOne: "step", agg: "sum", better: "more" } },
+    { name: "Something else", label: "", custom: true, measure: { mode: "count", unit: "times", unitOne: "time", agg: "sum", better: "neither" } },
   ],
 };
 

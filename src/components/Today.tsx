@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { calc, calcBuild, calcTrack, fmtNum, measureOf, milestoneProgress, unitFor, withUnit } from "../lib/calc";
+import { calc, calcBuild, calcTrack, compareToday, fmtNum, measureOf, milestoneProgress, unitFor, withUnit } from "../lib/calc";
 import { AFF, AFF_BUILD, MS_NAME, TYPES, kindOf, type BuildQuick, type Habit, type QuickType } from "../lib/model";
-import { DAY, fmtTime, plural, sod } from "../lib/util";
+import { DAY, addDays, fmtTime, plural, sod } from "../lib/util";
 import { useSteady } from "../store";
 import { ChevronRight, Glyph } from "./bits";
 
@@ -92,22 +92,43 @@ function SessionButton({ label, onClick }: { label: string; onClick: () => void 
   );
 }
 
+/** Position on the 6am–midnight timeline, as a CSS percentage. */
+const timelineLeft = (t: number) => {
+  const d = new Date(t);
+  const hr = Math.min(24, Math.max(6, d.getHours() + d.getMinutes() / 60));
+  return (((hr - 6) / 18) * 100).toFixed(1) + "%";
+};
+
+const TONE_COLOR = { good: "var(--teal)", harder: "var(--muted)", neutral: "var(--muted)" };
+
 function TodayBar({ habit }: { habit: Habit }) {
   const s = useSteady();
+  const now = Date.now();
   const todays = todayLogs(habit);
+  const cmp = compareToday(habit, now);
+  const today = sod(now);
+  const yesterday = cmp ? habit.logs.filter((l) => cmp.ghostTypes.includes(l.type) && sod(l.t) === addDays(today, -1)) : [];
+  const nowHr = new Date(now).getHours();
+  const glyphAt = (t: number) => ({ position: "absolute", top: "50%", left: timelineLeft(t), transform: "translate(-50%,-50%)" }) as const;
+
   return (
-    <button className="todaybar" onClick={() => s.setSheet("moments")}>
+    <button className="todaybar" onClick={() => s.setSheet("moments")} style={cmp ? { height: "auto", minHeight: 58, padding: "10px 16px" } : undefined}>
       <span style={{ display: "flex", flexDirection: "column", flex: "none", width: 76 }}>
         <span style={{ font: "800 14px 'Nunito',sans-serif" }}>Today</span>
         <span className="muted" style={{ font: "600 12px 'Nunito',sans-serif" }}>{kindOf(habit) === "track" ? plural(todays.length, "entry", "entries") : plural(todays.length, "moment")}</span>
       </span>
-      <span style={{ position: "relative", flex: 1, height: 24 }}>
-        <span style={{ position: "absolute", left: 0, right: 0, top: 11, height: 2, borderRadius: 2, background: "var(--line)" }} />
-        {todays.map((l) => {
-          const d = new Date(l.t);
-          const hr = Math.min(24, Math.max(6, d.getHours() + d.getMinutes() / 60));
-          return <Glyph key={l.id} type={l.type} style={{ position: "absolute", top: "50%", left: (((hr - 6) / 18) * 100).toFixed(1) + "%", transform: "translate(-50%,-50%)" }} />;
-        })}
+      <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+        <span style={{ position: "relative", height: 24 }}>
+          <span style={{ position: "absolute", left: 0, right: 0, top: 11, height: 2, borderRadius: 2, background: "var(--line)" }} />
+          {yesterday.map((l) => (
+            <Glyph key={l.id} type={l.type} style={{ ...glyphAt(l.t), opacity: 0.28 }} />
+          ))}
+          {cmp && nowHr >= 6 && <span aria-hidden style={{ position: "absolute", top: 4, height: 16, width: 1.5, borderRadius: 1, left: timelineLeft(now), background: "var(--muted)", opacity: 0.6 }} />}
+          {todays.map((l) => (
+            <Glyph key={l.id} type={l.type} style={glyphAt(l.t)} />
+          ))}
+        </span>
+        {cmp && <span style={{ font: "600 12px/1.25 'Nunito',sans-serif", color: TONE_COLOR[cmp.tone] }}>{cmp.line}</span>}
       </span>
       <ChevronRight style={{ color: "var(--muted)" }} />
     </button>

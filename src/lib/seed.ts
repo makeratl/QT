@@ -68,6 +68,6 @@ export function seedHabits(): Habit[] {
     { id: "h1", name: "Smoking", label: "smoke-free", why: "I want to keep up with Maya on our Saturday runs.", start: addDays(today, -41), logs: smoke },
     { id: "h2", name: "Weeknight drinking", label: "alcohol-free", why: "Clearer mornings. Better sleep.", start: addDays(today, -6), logs: drink },
     { id: "h3", kind: "build", name: "Meditation", label: "", why: "A calmer start to the day.", start: addDays(today, -30), logs: meditate, goal: { per: "day", times: 1 } },
-    { id: "h4", kind: "track", name: "Water", label: "", why: "", start: addDays(today, -20), logs: water, measure: { mode: "count", unit: "glasses", unitOne: "glass", agg: "sum" } },
+    { id: "h4", kind: "track", name: "Water", label: "", why: "", start: addDays(today, -20), logs: water, measure: { mode: "count", unit: "glasses", unitOne: "glass", agg: "sum", better: "more" } },
   ];
 }

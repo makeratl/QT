@@ -3,7 +3,7 @@ import { KIND_COPY, PRESETS, PROMPTS, SESSION_PROMPTS, URGE_MINUTES, WHY_IDEAS, 
 import { plural, sod } from "../lib/util";
 import { OB_STEPS, useSteady, type Onboard, type StartMode } from "../store";
 import { Seg } from "./bits";
-import { GoalPicker, Stepper } from "./Sheets";
+import { BetterPicker, GoalPicker, Stepper } from "./Sheets";
 
 const clock = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 
@@ -222,6 +222,7 @@ export function Onboarding() {
               <Seg<Measure["agg"]> options={[["sum", "Add them up"], ["latest", "Keep the latest"]]} value={ob.measure.agg} onChange={(agg) => setMeasure({ agg })} height={40} />
             </div>
           )}
+          <BetterPicker value={ob.measure.better} onChange={(better) => setMeasure({ better })} />
         </>
       )}
 

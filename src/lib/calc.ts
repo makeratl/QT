@@ -1,5 +1,5 @@
 import { BUCKETS, MS, MS_WEEKS, type Habit, type Log, type Measure } from "./model";
-import { addDays, diffDays, plural, sod } from "./util";
+import { DAY, addDays, diffDays, plural, sod } from "./util";
 
 export interface HabitStats {
   today: number;
@@ -188,3 +188,91 @@ export function patterns(h: Habit, today: number, timeTypes: Log["type"][], reas
     h.logs.filter((l) => types.includes(l.type) && l.t >= addDays(today, -a) && l.t < addDays(today, -b)).length;
   return { count: recent.length, buckets, maxB, peak, triggers, maxT, countIn };
 }
+
+/* ── Today vs. yesterday ───────────────────────────────────── */
+
+export type Tone = "good" | "harder" | "neutral";
+export interface Compare {
+  line: string;
+  tone: Tone;
+  /** Log types to ghost from yesterday on the timeline. */
+  ghostTypes: Log["type"][];
+}
+
+const CRAVINGS: Log["type"][] = ["thought", "trigger", "urge"];
+
+/**
+ * Compares today so far with yesterday up to the same clock time, so a
+ * morning check isn't measured against a full day. Returns null when
+ * there's no yesterday to compare with.
+ */
+export function compareToday(h: Habit, now = Date.now()): Compare | null {
+  const today = sod(now);
+  const yStart = addDays(today, -1);
+  if (sod(h.start) > yStart) return null;
+  const sameTimeYesterday = yStart + (now - today);
+  const inRange = (types: Log["type"][], from: number, to: number) => h.logs.filter((l) => types.includes(l.type) && l.t >= from && l.t <= to);
+  const kind = h.kind ?? "quit";
+
+  if (kind === "quit") {
+    const a = inRange(CRAVINGS, today, now).length;
+    const b = inRange(CRAVINGS, yStart, sameTimeYesterday).length;
+    const d = a - b;
+    const ghostTypes: Log["type"][] = ["thought", "trigger", "urge", "resisted", "slip"];
+    if (d < 0) return { line: `${plural(-d, "craving")} fewer than yesterday by now`, tone: "good", ghostTypes };
+    if (d > 0) return { line: `A harder day so far: ${d} more than yesterday`, tone: "harder", ghostTypes };
+    return { line: a === 0 ? "Quiet so far, like yesterday" : "Same as yesterday by now", tone: "neutral", ghostTypes };
+  }
+
+  if (kind === "build") {
+    const ghostTypes: Log["type"][] = ["done", "resist", "skip"];
+    if (h.goal?.per === "week") {
+      const ws = weekStart(today);
+      if (sod(h.start) >= ws) return null;
+      const a = inRange(["done"], ws, now).length;
+      const b = inRange(["done"], addDays(ws, -7), now - 7 * DAY).length;
+      const d = a - b;
+      const lead = `${a} so far this week`;
+      if (d > 0) return { line: `${lead}, ${d} ahead of last week`, tone: "good", ghostTypes };
+      if (d < 0) return { line: `${lead}, ${-d} behind last week`, tone: "neutral", ghostTypes };
+      return { line: `${lead}, same as last week by now`, tone: "neutral", ghostTypes };
+    }
+    const todayDone = inRange(["done"], today, now);
+    const yDone = inRange(["done"], yStart, sameTimeYesterday);
+    const mins = (ls: Log[]) => ls.reduce((s, l) => s + (l.value ?? 0), 0);
+    const ma = mins(todayDone);
+    const mb = mins(yDone);
+    if (ma > 0 || mb > 0) {
+      const d = ma - mb;
+      if (d > 0) return { line: `${d} min more than yesterday by now`, tone: "good", ghostTypes };
+      if (d < 0) return { line: `${-d} min less than yesterday by now`, tone: "neutral", ghostTypes };
+      return { line: "Same time in as yesterday", tone: "good", ghostTypes };
+    }
+    if (todayDone.length && yDone.length) return { line: "Done today and yesterday", tone: "good", ghostTypes };
+    if (todayDone.length) return { line: "Done, ahead of yesterday by now", tone: "good", ghostTypes };
+    if (yDone.length) return { line: "You'd done it by now yesterday", tone: "neutral", ghostTypes };
+    return { line: "Not yet, same as yesterday by now", tone: "neutral", ghostTypes };
+  }
+
+  // track
+  const m = measureOf(h);
+  const ghostTypes: Log["type"][] = ["entry"];
+  const round = (v: number) => Math.round(v * 10) / 10;
+  const toneFor = (d: number): Tone => (m.better === "more" && d > 0) || (m.better === "less" && d < 0) ? "good" : "neutral";
+  if (m.agg === "latest") {
+    const a = dayValue(h, today);
+    const b = dayValue(h, yStart);
+    if (b === null) return null;
+    if (a === null) return { line: `Yesterday: ${withUnit(m, round(b))}`, tone: "neutral", ghostTypes };
+    const d = round(a - b);
+    if (d === 0) return { line: "Same as yesterday", tone: "neutral", ghostTypes };
+    return { line: `${withUnit(m, Math.abs(d))} ${d > 0 ? "up" : "down"} from yesterday`, tone: toneFor(d), ghostTypes };
+  }
+  const sum = (ls: Log[]) => ls.reduce((s, l) => s + (l.value ?? 1), 0);
+  const a = sum(inRange(["entry"], today, now));
+  const b = sum(inRange(["entry"], yStart, sameTimeYesterday));
+  const d = round(a - b);
+  if (d === 0) return { line: a === 0 ? "Nothing yet, same as yesterday by now" : "Same as yesterday by now", tone: "neutral", ghostTypes };
+  return { line: `${withUnit(m, Math.abs(d))} ${d > 0 ? "more" : m.mode === "count" ? "fewer" : "less"} than yesterday by now`, tone: toneFor(d), ghostTypes };
+}
+

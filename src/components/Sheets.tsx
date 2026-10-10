@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { calc, measureOf, withUnit } from "../lib/calc";
-import { BLOCKERS, INTENSITY, TRIGGERS, TYPES, kindOf, type Goal, type Habit, type Intensity, type Log } from "../lib/model";
+import { BLOCKERS, INTENSITY, TRIGGERS, TYPES, kindOf, type Goal, type Habit, type Intensity, type Log, type Measure } from "../lib/model";
 import { fmtTime, plural } from "../lib/util";
 import { useSteady } from "../store";
 import { Chips, Glyph, Seg } from "./bits";
@@ -280,6 +280,16 @@ function NoteSheet() {
   );
 }
 
+/** Which direction counts as a good day for a tracker; drives the today-vs-yesterday colour. */
+export function BetterPicker({ value, onChange }: { value: Measure["better"]; onChange: (v: NonNullable<Measure["better"]>) => void }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <span className="muted" style={{ font: "700 13px 'Nunito',sans-serif" }}>A better day means</span>
+      <Seg<NonNullable<Measure["better"]>> options={[["more", "More"], ["less", "Less"], ["neither", "Neither"]]} value={value ?? "neither"} onChange={onChange} height={40} />
+    </div>
+  );
+}
+
 export function GoalPicker({ goal, onChange }: { goal: Goal; onChange: (g: Goal) => void }) {
   return (
     <>
@@ -315,6 +325,7 @@ function EditSheet({ habit }: { habit: Habit }) {
           <textarea className="field" value={habit.why} onChange={(e) => set({ why: e.target.value })} rows={3} placeholder="We'll show this on the hard days." style={{ padding: "12px 14px", borderRadius: 14, font: "500 16px/1.4 'Nunito',sans-serif" }} />
         </label>
       )}
+      {k === "track" && <BetterPicker value={m.better} onChange={(better) => set({ measure: { ...m, better } })} />}
       {k === "build" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <span className="muted" style={cap}>Goal</span>
